@@ -1,7 +1,7 @@
 // In-app analyst chat: floating button + panel. Sends the question together with a structured,
 // data-only snapshot of what the app is showing (selected trade, prices, books, fees, payoff table,
 // match checks, rules, bucket, filters, board metrics). The server picks the AI engine.
-import { buildContext, SUGGESTIONS, BOARD_SUGGESTIONS, CROWD_SUGGESTIONS, CROWD_BOARD_SUGGESTIONS } from '/chat-analyst.js';
+import { buildContext, SUGGESTIONS, BOARD_SUGGESTIONS, CROWD_SUGGESTIONS, CROWD_BOARD_SUGGESTIONS, LINKED_SUGGESTIONS } from '/chat-analyst.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -36,10 +36,16 @@ function snapshot() {
   const research = window.IOD_RESEARCH?.() || null;
   const onResearch = S.view === 'research';
   const onCrowd = S.view === 'crowd';
+  const onLinked = S.view === 'linked';
+  const linkedSnap = window.IOD_LINKED?.() || null;
   const crowd = window.IOD_CROWD?.() || null;
-  const opp = !onResearch && !onCrowd && C.pinned ? S.data?.opportunities?.find((o) => o.id === C.pinned) : null;
+  const opp = !onResearch && !onCrowd && !onLinked && C.pinned ? S.data?.opportunities?.find((o) => o.id === C.pinned) : null;
   const ctx = buildContext({ view: S.view, mode: a.mode, filters: S.filters, data: S.data, visible: a.visible, opportunity: opp,
-    research: onResearch ? research : { count: research?.count ?? null }, scannedAt: S.scannedAt, crowd: onCrowd ? crowd : crowd ? { count: crowd.count, feed: crowd.feed } : null });
+    research: onResearch ? research : { count: research?.count ?? null }, scannedAt: S.scannedAt, crowd: onCrowd ? crowd : crowd ? { count: crowd.count, feed: crowd.feed } : null, linked: onLinked ? linkedSnap : null });
+  if (onLinked) {
+    const sel = linkedSnap?.selected;
+    return { ctx, label: sel ? `${sel.relationship.from.event} ⇒ ${sel.relationship.to.event}` : 'Linked markets', kind: sel ? 'linked' : 'linked-board', key: sel ? 'l:' + sel.id : 'linked' };
+  }
   if (onCrowd) {
     const sel = crowd?.selected;
     return { ctx, label: sel ? `${sel.event.title} · ${sel.target.venueName}` : 'Crowd disagreement board', kind: sel ? 'crowd' : 'crowd-board', key: sel ? 'c:' + sel.id : 'crowd' };
@@ -51,7 +57,7 @@ function snapshot() {
 
 function renderCtx() {
   const s = snapshot();
-  const tag = { guaranteed: '<span class="pill verified">GUARANTEED</span>', near: '<span class="pill near">NEAR-ARB</span>', research: '<span class="pill likely">RESEARCH</span>', crowd: '<span class="pill research">CROWD</span>', board: '' }[s.kind] || '';
+  const tag = { guaranteed: '<span class="pill verified">GUARANTEED</span>', near: '<span class="pill near">NEAR-ARB</span>', research: '<span class="pill likely">RESEARCH</span>', crowd: '<span class="pill research">CROWD</span>', linked: '<span class="pill research">LINKED</span>', board: '' }[s.kind] || '';
   $('chat-ctx').innerHTML = `<span class="chat-ctx-k">Analyzing</span><span class="chat-ctx-v" title="${esc(s.label)}">${esc(s.label)}</span>${tag}${C.pinned && s.kind !== 'research' && s.kind !== 'board' ? '<button class="chat-unpin" id="chat-unpin" title="Talk about the whole board instead" aria-label="Unpin">×</button>' : ''}`;
   const u = $('chat-unpin'); if (u) u.onclick = () => { C.pinned = null; renderCtx(); renderSugg(); };
   renderSugg(s);
@@ -59,7 +65,7 @@ function renderCtx() {
 }
 
 function renderSugg(s = snapshot()) {
-  const list = s.kind === 'crowd' ? CROWD_SUGGESTIONS : s.kind === 'crowd-board' ? CROWD_BOARD_SUGGESTIONS : s.kind === 'board' ? BOARD_SUGGESTIONS : s.kind === 'research'
+  const list = s.kind === 'linked' ? LINKED_SUGGESTIONS : s.kind === 'linked-board' ? ['What are linked markets?', 'Why is nothing executable right now?', 'What does "structure verified" mean?'] : s.kind === 'crowd' ? CROWD_SUGGESTIONS : s.kind === 'crowd-board' ? CROWD_BOARD_SUGGESTIONS : s.kind === 'board' ? BOARD_SUGGESTIONS : s.kind === 'research'
     ? ['Explain this anomaly simply', 'Is this a trade I can make money on?', 'What does violation size mean?', 'Why is this only research?']
     : s.kind === 'guaranteed' ? SUGGESTIONS.filter((x) => !/isn't/.test(x)) : SUGGESTIONS.filter((x) => !/considered arbitrage/.test(x));
   const show = !C.busy && (C.messages.length === 0 || C.ctxKey !== s.key);
@@ -163,7 +169,7 @@ $('chat-form').onsubmit = (e) => { e.preventDefault(); ask($('chat-q').value); }
 $('chat-q').addEventListener('input', autosize);
 $('chat-q').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($('chat-q').value); } });
 $('chat-sugg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) ask(b.textContent); });
-$('chat-panel').addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); toggle(false); $('chat-fab').focus(); } });
+$('chat-panel').addEventListener('keydown', (e) => { if (e.key === 'Escape' && C.open) { e.stopPropagation(); toggle(false); $('chat-fab').focus(); } });
 
 // Follow what the user is looking at.
 window.addEventListener('iod:focus', (e) => { C.pinned = e.detail.id; if (C.open) renderCtx(); });
@@ -172,6 +178,8 @@ window.addEventListener('iod:ask', (e) => {
   const s = snapshot();
   if (C.ctxKey !== s.key) ask('Explain this opportunity simply');
 });
+window.addEventListener('iod:linked-focus', () => { if (C.open) setTimeout(renderCtx, 0); });
+window.addEventListener('iod:ask-linked', () => { toggle(true); const s = snapshot(); if (C.ctxKey !== s.key) ask('Explain this simply'); });
 window.addEventListener('iod:crowd-focus', () => { if (C.open) setTimeout(renderCtx, 0); });
 window.addEventListener('iod:ask-crowd', () => {
   toggle(true);

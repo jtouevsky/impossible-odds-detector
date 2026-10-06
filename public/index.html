@@ -49,6 +49,7 @@
     <nav class="tabs" id="tabs" role="tablist">
       <button class="tab on" data-view="arb" role="tab">Guaranteed arbitrage <span class="n" id="tab-arb-n"></span></button>
       <button class="tab" data-view="near" role="tab">Near-arb <span class="n" id="tab-near-n"></span></button>
+      <button class="tab" data-view="linked" role="tab">Linked markets <span class="n" id="tab-linked-n"></span></button>
       <button class="tab" data-view="crowd" role="tab">Crowd disagreement <span class="n" id="tab-crowd-n"></span></button>
       <button class="tab" data-view="research" role="tab">Research <span class="n" id="tab-res-n"></span></button>
       <button class="tab" data-view="providers" role="tab">Venues <span class="n" id="tab-prov-n"></span></button>
@@ -178,6 +179,40 @@
     </section>
     </div>
 
+    <div id="view-linked" hidden>
+      <section class="hero">
+        <div class="hero-copy">
+          <h2>Linked markets</h2>
+          <p>Different contracts that are logically tied together — by the live score or by the tournament bracket. If one must happen whenever the other does, buying YES on the consequence and NO on the cause can pay in every outcome. <button class="eli" data-help="linked">Explain like I'm new</button></p>
+        </div>
+        <div class="tiles">
+          <article class="tile"><div class="t-k">Executable now <button class="eli sm" data-help="linkedExec">?</button></div><div class="t-v" id="l-exec">—</div><div class="t-s" id="l-exec-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Profitable structures <button class="eli sm" data-help="linkedStruct">?</button></div><div class="t-v" id="l-struct">—</div><div class="t-s clamp1" id="l-struct-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Verified links <button class="eli sm" data-glossary="implication">?</button></div><div class="t-v" id="l-links">—</div><div class="t-s clamp1" id="l-links-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Game states <button class="eli sm" data-help="gameState">?</button></div><div class="t-v" id="l-games" style="font-size:22px">—</div><div class="t-s clamp1" id="l-games-sub">&nbsp;</div></article>
+        </div>
+      </section>
+      <section class="panel glass">
+        <div class="toolbar">
+          <div class="seg" id="l-mode" role="tablist" aria-label="Data">
+            <button data-mode="live" class="on">Live</button><button data-mode="research">Research (manual score)</button><button data-mode="example">Example</button>
+          </div>
+          <button class="btn" id="l-refresh">Recheck now</button>
+          <span class="muted" id="l-source" style="font-size:12.5px"></span>
+        </div>
+        <div class="filters">
+          <label class="f sel"><span>Min net profit <button class="eli sm" data-help="minNetLinked" type="button">?</button></span><select id="l-minnet"><option value="0">Any</option><option value="1">$1+</option><option value="5">$5+</option><option value="25">$25+</option></select></label>
+          <label class="f sel"><span>Min capital</span><select id="l-mincap"><option value="0">Any</option><option value="10">$10+</option><option value="100">$100+</option><option value="1000">$1k+</option></select></label>
+          <label class="f sel"><span>Relationship</span><select id="l-kind"><option value="">All</option><option value="score">Score-based (live game)</option><option value="bracket">Tournament bracket</option></select></label>
+          <label class="toggle"><input type="checkbox" id="l-all" /><span class="track"><span class="knob"></span></span><span>Show verified links that don't pay</span></label>
+        </div>
+        <div id="l-manual" class="lmanual" hidden></div>
+        <div id="l-empty" class="notice" hidden></div>
+        <div id="llist" class="opp-list" aria-live="polite"></div>
+        <div class="foot"><span id="lfoot"></span><span class="muted">A link is proven from settlement rules and the score or bracket — never from correlation. Proof and execution readiness are shown separately. Not financial advice.</span></div>
+      </section>
+    </div>
+
     <div id="view-crowd" hidden>
       <section class="hero">
         <div class="hero-copy">
@@ -225,6 +260,7 @@
   <script type="module" src="/app.js"></script>
   <script type="module" src="/arb.js"></script>
   <script type="module" src="/crowd.js"></script>
+  <script type="module" src="/linked.js"></script>
   <script type="module" src="/chat.js"></script>
 </body>
 </html>

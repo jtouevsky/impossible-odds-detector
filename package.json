@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "start": "node --max-old-space-size=4096 server.js",
-    "test": "node test/engine.test.mjs && node test/arb.test.mjs && node test/v3.test.mjs && node test/chat.test.mjs && node test/sports.test.mjs",
+    "test": "node test/engine.test.mjs && node test/arb.test.mjs && node test/v3.test.mjs && node test/chat.test.mjs && node test/sports.test.mjs && node test/linked.test.mjs",
     "arb": "node scripts/live-arb.mjs",
     "scan": "node scripts/live-scan.mjs"
   },

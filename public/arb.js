@@ -46,6 +46,8 @@ function setView(v) {
   $('view-research').hidden = v !== 'research';
   $('view-providers').hidden = v !== 'providers';
   $('view-crowd').hidden = v !== 'crowd';
+  $('view-linked').hidden = v !== 'linked';
+  window.dispatchEvent(new CustomEvent('iod:view', { detail: { view: v } }));
   $('averified-wrap').hidden = v !== 'near';
   $('hero-title').textContent = v === 'near' ? 'Near-arb · tail risk' : 'Guaranteed arbitrage';
   $('hero-sub').innerHTML = v === 'near'

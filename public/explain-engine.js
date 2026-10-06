@@ -27,6 +27,7 @@ export const GLOSSARY = {
   push: { short: 'A bet that lands exactly on the line or ends tied — your stake comes back.', long: 'Sportsbooks usually refund a push. Prediction markets may settle a tie at 50¢ instead. These differences are shown in Settlement differences and modelled in sports baskets.', example: 'Total 44, final score 24–20 → push.' },
   dfs: { short: 'Pick\'em apps (PrizePicks, Underdog) — not sportsbook odds.', long: 'They pay fixed multipliers for combining several picks, so a single line has no clean probability. We show them separately and never use them in a consensus or arbitrage.', example: '"More than 249.5 passing yards" as one leg of a 3-pick entry.' },
   freshness: { short: 'How old the quotes are.', long: 'Sportsbook quotes get full weight up to 10 minutes old, then less, and are dropped after 60 minutes. The freshness filter hides comparisons older than you choose.', example: 'A 40-minute-old Pinnacle price counts at 40% weight.' },
+  'linked markets': { short: 'Different contracts that logic ties together.', long: 'When one outcome forces another (A ⇒ B), buying YES on B and NO on A pays in every outcome: if A happens B pays, if A fails NO-A pays.', example: 'A team trailing 24–20 that wins makes the total at least 49, so "they win" forces "over 48.5".' },
   'tail state': { short: 'A rare outcome like a cancelled or postponed event.', long: 'Some venues settle cancellations at a "fair price" they choose, so a hedge could pay less than $1 there. Strict mode counts these at their worst case.', example: 'A game postponed by more than 48 hours.' },
 };
 
@@ -47,6 +48,11 @@ export const HELP = {
   minProfit: 'Hide trades whose total net profit (at max size) is below this dollar amount.',
   minLiq: 'Hide trades where the thinnest leg has less liquidity than this.',
   strategy: 'Cross-platform = same contract on two venues. Binary = YES+NO hedges on one venue. Multi-outcome = baskets across a set of outcomes. Implication = nested contracts (A implies B).',
+  linked: 'Two different contracts can be tied by logic. Example: if a team trailing 24–20 wins, the game total must reach at least 49 — so "they win" forces "over 48.5". Buying YES on the forced outcome plus NO on the cause pays at least $1 whatever happens. We only list links proven from the rules and the score or bracket — never "these usually move together".',
+  linkedExec: 'Trades that pay in every outcome AND are ready to execute now: live verified game state, fresh quotes on both legs, order-book size checked, and every settlement case known.',
+  linkedStruct: 'Baskets whose worst-case payout beats cost + fees + buffer at the current prices, but where something about execution is not confirmed (size, quotes, a postponement rule, or a manual/example state).',
+  gameState: 'Live scores from Polymarket US. We only trust a score when the per-team period scores match the headline score, and we keep the provider\'s timestamp separate from when we received it.',
+  minNetLinked: 'Hide baskets whose guaranteed (worst-case) net profit at the available size is below this.',
   crowd: 'Compares a prediction market\'s buy price (or one sportsbook\'s price) with what several other sportsbooks imply after removing their margin. Big gaps are worth researching — they are not guaranteed profit.',
   oddsFeed: 'Sportsbook prices come from The Odds API (free key, 500 credits/month). Without a key this tab stays empty — the app never shows invented odds.',
   sportsBasket: 'Bets across a sportsbook and another venue that would pay more than they cost in every result, using real cash payouts (incl. ties/pushes and cancellations). Execution is unverified — books don\'t publish limits — so these never appear as guaranteed arbitrage.',

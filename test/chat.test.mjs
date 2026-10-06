@@ -119,4 +119,15 @@ await test('crowd comparison context: estimate, not arbitrage; terms explained',
   assert.match(systemPrompt(), /estimated consensus probability/);
 });
 
+await test('linked context: proven link explained with the payoff table, example stays labelled', async () => {
+  const { exampleResults } = await import('../src/linked/index.js');
+  const [ex] = exampleResults();
+  const c = buildContext({ view: 'linked', mode: 'simple', filters, data: data([]), visible: [], opportunity: null, linked: { mode: 'example', count: 0, selected: ex } });
+  assert.match(c.linked.selected.classification, /EXAMPLE/);
+  assert.equal(c.linked.selected.legs[0].buy, 'YES');
+  const a = answerLocally('Explain this simply', c);
+  assert.match(a, /⇒/); assert.match(a, /at least 49/); assert.match(a, /EXAMPLE/);
+  assert.match(answerLocally('Why is this not executable?', c), /hypothetical/i);
+});
+
 console.log(`\n${passed} chat tests passed`);

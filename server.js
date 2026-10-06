@@ -21,6 +21,7 @@ import { providers as PROVIDER_REGISTRY, JURISDICTIONS, ELIGIBILITY } from './sr
 import { OddsFeed, CONFIG as ODDS_CONFIG, BOOKS } from './src/sports/theOddsApi.js';
 import { predictionQuotes, buildComparisons, sportsBaskets } from './src/sports/compare.js';
 import { History, historyRecords } from './src/history.js';
+import { runLive as runLinkedLive, runManual as runLinkedManual, exampleResults as linkedExamples } from './src/linked/index.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = +(process.env.PORT || 4173);
@@ -47,6 +48,51 @@ const oddsCache = { data: readJSONFile(ODDS_FILE, null), save() { fs.mkdirSync(C
 const odds = new OddsFeed({ getKey: oddsKey, cache: oddsCache });
 const history = new History(path.join(CACHE_DIR, 'history'));
 let lastPredictionQuotes = [];
+
+// ---------- Linked Markets (Polymarket US game states + brackets) ----------
+const LINKED_TTL_MS = +(process.env.LINKED_REFRESH_SEC || 15) * 1000;
+const linked = { result: null, at: 0, running: null, games: [] };
+const slimContract = (c) => ({ id: c.id, question: c.question, url: c.url, kind: c.kind, stage: c.stage || null, line: c.line ?? null, team: c.team ?? null,
+  rules: { overtime: c.rules.overtime, tie: c.rules.tie, voidRule: c.rules.voidRule, text: c.rules.text, version: c.rules.version } });
+function slimBasket(b) {
+  const r = b.relationship;
+  return { ...b, relationship: { id: r.id, type: r.type, rule: r.rule, why: r.why, assumptions: r.assumptions, state: r.state, compat: r.compat, verified: r.verified,
+    createdByState: r.createdByState, eventIds: r.eventIds,
+    from: { ...r.from, contract: slimContract(r.from.contract) }, to: { ...r.to, contract: slimContract(r.to.contract) } } };
+}
+function packLinked(out, extra = {}) {
+  const keep = out.results.filter((b, i) => b.executable || b.profitable || i < 150);
+  return { ...extra, generatedAt: new Date().toISOString(), mode: out.mode, source: out.source || null, games: out.games || [], diagnostics: out.diagnostics,
+    emptyReason: out.emptyReason, total: out.results.length, results: keep.map(slimBasket), examples: linkedExamples().map(slimBasket),
+    config: { refreshSec: LINKED_TTL_MS / 1000 } };
+}
+async function linkedLive(force = false) {
+  if (!force && linked.result && Date.now() - linked.at < LINKED_TTL_MS) return linked.result;
+  if (linked.running) return linked.running;
+  linked.running = (async () => {
+    try {
+      const out = await runLinkedLive({ config: { bufferPerShare: ARB_CONFIG.bufferPerShare, includeTailStates: ARB_CONFIG.includeTailStates } });
+      linked.games = out.gamesInput;
+      linked.result = packLinked(out);
+      linked.at = Date.now();
+      try {
+        const states = out.gamesInput.filter((g) => g.state.scores).map((g) => ({ k: `state|${g.state.eventSlug}`, sig: g.state.version, src: 'polymarket-us', event: g.state.eventSlug,
+          scores: g.state.scores, period: g.state.period, live: g.state.live, providerTime: g.state.providerTime, receivedAt: new Date(g.state.receivedAt).toISOString() }));
+        const sig = out.results.filter((b) => b.profitable || b.executable);
+        history.write('gamestates', states);
+        history.write('linked', sig.map((b) => ({ k: `linked|${b.id}`, sig: `${b.classification}|${b.unit?.net?.toFixed(4)}|${b.econ?.qty}`, rule: b.relationship.rule,
+          stateVersion: b.relationship.state?.version || null, legs: b.legs.map((l) => `${l.contractId}|${l.side}@${l.ask}`), ruleVersions: b.legs.map((l) => l.rules?.version || null),
+          minNet: b.econ?.minNet ?? null, qty: b.econ?.qty ?? null, classification: b.classification })));
+        history.write('quotes', sig.flatMap((b) => b.legs.map((l) => ({ k: `polymarket-us|${l.contractId}|${l.side}`, sig: `${l.ask}`, src: 'polymarket-us', contract: l.contractId, side: l.side, ask: l.ask, ruleVersion: l.rules?.version || null }))));
+      } catch { /* history is best-effort */ }
+      return linked.result;
+    } catch (err) {
+      linked.result = { ...(linked.result || {}), error: err.message, source: { state: 'unavailable', errors: [err.message] } };
+      return linked.result;
+    } finally { linked.running = null; }
+  })();
+  return linked.running;
+}
 
 const state = {
   result: null,          // last compact scan result
@@ -254,6 +300,17 @@ const server = http.createServer(async (req, res) => {
       if ('oddsApiKey' in b && state.result) { state.result.sports = await sportsSection({ force: true }); }
       if (rescan && state.result) state.result.scannedAt = new Date(0).toISOString(); // next /api/scan refetches
       return send(req, res, 200, { ...publicSettings(), sports: state.result?.sports || null, rescan });
+    }
+    if (p === '/api/linked' && req.method === 'GET') return send(req, res, 200, await linkedLive(url.searchParams.get('force') === '1'));
+    if (p === '/api/linked/manual' && req.method === 'POST') {
+      const b = await readJSON(req, 20000);
+      if (!linked.games.length) await linkedLive();
+      const game = linked.games.find((g) => g.state.eventSlug === b.eventSlug);
+      if (!game) return send(req, res, 404, { error: 'Unknown game.' });
+      const scores = {};
+      for (const t of game.state.teams) { const v = Number(b.scores?.[t.code]); if (!Number.isInteger(v) || v < 0 || v > 400) return send(req, res, 400, { error: `Enter a whole-number score for ${t.code.toUpperCase()}.` }); scores[t.code] = v; }
+      const out = runLinkedManual({ game, scores, config: { bufferPerShare: ARB_CONFIG.bufferPerShare, includeTailStates: ARB_CONFIG.includeTailStates } });
+      return send(req, res, 200, packLinked(out, { manual: { eventSlug: b.eventSlug, scores } }));
     }
     if (p === '/api/sports' && req.method === 'POST') {
       if (!state.result) return send(req, res, 409, { error: 'Run a market scan first.' });

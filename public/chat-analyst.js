@@ -62,7 +62,23 @@ export function comparisonContext(r) {
   };
 }
 
-export function buildContext({ view, mode, filters, data, visible, opportunity, research, scannedAt, crowd }) {
+export function linkedContext(b) {
+  if (!b) return null;
+  const r = b.relationship;
+  return {
+    classification: b.mode === 'example' ? 'EXAMPLE with hypothetical prices (not a real opportunity)' : b.mode === 'research' ? 'RESEARCH — manual score entered by the user (not live, never executable)'
+      : b.executable ? 'Executable linked arbitrage (verified structure, live quotes, size checked)' : b.profitable ? 'Profitable structure but NOT executable' : 'Verified link, but current prices do not pay',
+    relationship: { type: r.type, direction: `${r.from.event} ${r.type === 'equivalence' ? '⇔' : '⇒'} ${r.to.event}`, rule: r.rule, why: r.why, assumptions: r.assumptions,
+      stateUsed: r.state, settlementChecks: (r.compat?.checks || []).map((c) => `${c.field}: ${c.a} / ${c.b} → ${c.result}${c.note ? ` (${c.note})` : ''}`) },
+    legs: b.legs.map((l) => ({ buy: l.side.toUpperCase(), outcome: l.label, market: l.market, venue: l.venue, askPrice: l.ask, quantity: b.econ?.qty ?? null })),
+    perBasket: b.unit ? { cost: b.unit.cost, feeEstimate: b.unit.fees, buffer: b.unit.buffer, minPayout: b.unit.minPayout, minNet: b.unit.net } : null,
+    atSize: b.econ ? { baskets: b.econ.qty, totalCost: b.econ.cost, fees: b.econ.fees, minPayout: b.econ.minPayout, minNetProfit: b.econ.minNet, roi: b.econ.roi } : null,
+    payoffTable: b.rows.map((x) => ({ outcome: x.label, rare: x.tail, payoutPerBasketMin: x.lo, payoutPerBasketMax: x.hi })),
+    status: b.status, whyNotExecutable: b.reasons,
+  };
+}
+
+export function buildContext({ view, mode, filters, data, visible, opportunity, research, scannedAt, crowd, linked }) {
   const all = data?.opportunities || [];
   const g = all.filter((o) => o.bucket === 'guaranteed'), n = all.filter((o) => o.bucket === 'near');
   const best = (list) => list.reduce((b, o) => (!b || (o.roi ?? -1) > (b.roi ?? -1) ? o : b), null);
@@ -88,6 +104,7 @@ export function buildContext({ view, mode, filters, data, visible, opportunity, 
       selected: comparisonContext(crowd.selected),
     } : null,
     opportunity: opportunityContext(opportunity),
+    linked: linked ? { mode: linked.mode, profitableNow: linked.count, emptyReason: linked.emptyReason, selected: linkedContext(linked.selected) } : null,
   };
 }
 
@@ -124,6 +141,7 @@ HARD RULES
 - Mention that quotes can move and both legs must fill when it matters. No financial advice framing beyond that; no hype.
 - Crowd disagreement rows compare one venue's buy price with an ESTIMATED consensus probability from other sportsbooks (margin removed per book from both sides of the same bet, freshness-weighted, the evaluated venue excluded). It is an estimate, not the truth, and a gap is never guaranteed profit or arbitrage. Say "estimated consensus probability".
 - Sports baskets with a sportsbook leg are "execution unverified" (books don't publish limits) and never guaranteed. DFS/pick'em (PrizePicks, Underdog) are not sportsbook odds and are never used for consensus or arbitrage. A different line or period is a different bet.
+- Linked markets: a relationship "A ⇒ B" was PROVEN by the app from the score or the published bracket, never from correlation. The hedge is BUY YES(B) + BUY NO(A). Explain using the payoff table; never claim it is executable unless the context says so, and keep examples/research clearly labelled.
 - If no opportunity is selected, answer about the board, the filters, or the term asked about, and suggest opening a trade card for specifics.
 - Format: short paragraphs or bullet lists, **bold** for key numbers. Max ~180 words unless asked for more. No headings, no tables.`;
 }
@@ -272,6 +290,8 @@ export function answerLocally(question, ctx) {
   if (intent === 'filters') return filtersText(ctx);
   if (t && termQ && !['how', 'risks', 'notGuaranteed', 'why', 'amount', 'outcomes', 'fees'].includes(intent)) return explainTerm(t, op);
   if (intent === 'board') return boardText(ctx);
+  if (!op && ctx?.linked?.selected) return linkedText(q, ctx.linked.selected, intent);
+  if (!op && ctx?.linked && !t && /linked/i.test(ctx.screen?.view || '')) return `Linked markets are different contracts that logic ties together — for example, if a team trailing 24–20 wins, the total must reach 49, so "they win" forces "over 48.5". The app proves each link from the score or the tournament bracket and then checks every possible outcome.\n\n${ctx.linked.profitableNow ? `${ctx.linked.profitableNow} basket(s) pay at current prices.` : `Nothing pays right now. ${ctx.linked.emptyReason || ''}`}\n\nOpen a card and I'll walk through it.`;
   if (!op && ctx?.research?.title) return researchText(q, ctx.research, intent);
   if (!op && ctx?.crowd?.selected && !(t && termQ && !has(q, /this|here/))) return crowdText(q, ctx.crowd.selected, intent, t);
   if (!op && ctx?.crowd && /crowd/i.test(ctx.screen?.view || '') && !t && intent !== 'buckets' && intent !== 'filters') return crowdBoardText(ctx.crowd);
@@ -382,6 +402,17 @@ function crowdBoardText(cr) {
   const rows = (cr.visibleNow || []).map((r) => `- ${r.event} · ${r.outcome.toUpperCase()} on ${r.venue}: price ${Math.round(r.buyPrice * 100)}% vs consensus ${Math.round(r.consensus * 100)}% (${r.gapAfterFeesPts >= 0 ? '+' : ''}${r.gapAfterFeesPts.toFixed(1)} pts, ${r.match})`).join('\n');
   return `There ${cr.comparisons === 1 ? 'is' : 'are'} **${cr.comparisons ?? 0}** comparable quotes.${rows ? `\n\nOn your screen:\n${rows}` : ' None pass the current filters.'}\n\nThese are disagreements worth researching — not arbitrage. Open a row and I'll walk through the math.`;
 }
+
+function linkedText(q, L, intent) {
+  const legs = L.legs.map((l) => `- Buy **${l.buy}** "${l.outcome}" (${l.market}) at ${c(l.askPrice)}${l.quantity ? ` × ${qty(l.quantity)}` : ''}`).join('\n');
+  const table = L.payoffTable.map((r) => `- ${r.outcome}${r.rare ? ' (rare)' : ''}: pays ${r.payoutPerBasketMin === r.payoutPerBasketMax ? usd(r.payoutPerBasketMin) : `${usd(r.payoutPerBasketMin)}–${usd(r.payoutPerBasketMax)}`} per basket`).join('\n');
+  const b = L.perBasket;
+  const money = b ? `One basket costs ${c(b.cost, 2)} plus ≈${c(b.feeEstimate, 2)} fees and a ${c(b.buffer, 2)} buffer, and pays at least ${usd(b.minPayout)} → ${b.minNet > 0 ? `**${c(b.minNet, 2)} guaranteed per basket**` : `**${c(b.minNet, 2)} per basket — it doesn't pay at these prices**`}.` : 'One side has no quote right now.';
+  if (intent === 'risks' || intent === 'notGuaranteed' || has(q, /executable|go wrong/)) return `**${L.classification}.**\n\n${L.whyNotExecutable.map((x) => `- ${x}`).join('\n') || '- Nothing blocking.'}\n${(L.status.settlement || []).map((x) => `- ${x}`).join('\n')}\n\nAssumptions:\n${L.relationship.assumptions.map((x) => `- ${x}`).join('\n')}`;
+  return `**${L.relationship.direction}** — ${L.classification}.\n\n${L.relationship.why}\n\nSo the hedge is:\n${legs}\n\nIf the first event happens, the second must too, so that leg pays $1. If it doesn't happen, the NO leg pays $1. Every outcome:\n${table}\n\n${money}`;
+}
+
+export const LINKED_SUGGESTIONS = ['Explain this simply', 'Why are these markets linked?', 'What could make this fail?', 'Why is this not executable?'];
 
 export const CROWD_SUGGESTIONS = ['Explain this comparison simply', 'How would I make money here?', 'Why is this not arbitrage?', 'What is bookmaker margin?', 'How is the consensus calculated?', 'What could make this wrong?'];
 export const CROWD_BOARD_SUGGESTIONS = ['What is the Crowd disagreement tab?', 'What is an estimated consensus probability?', 'What is no-vig?', 'What are player props?', "Why aren't PrizePicks lines used?"];

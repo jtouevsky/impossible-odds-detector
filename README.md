@@ -16,6 +16,7 @@ The app pulls live markets from every venue, turns each one into a canonical con
 |---|---|
 | **Guaranteed arbitrage** | Pays more than it costs in *every* outcome, at executable prices, after fees and a safety buffer, with a verified contract match and fresh quotes. |
 | **Near-arb** | Looks profitable but one thing isn't certain: unverified match, a rare tail outcome, stale quotes, or a venue that hides order sizes. |
+| **Linked markets** | Different contracts tied by logic — the live score ("a team trailing 24–20 that wins forces the total to 49+") or the tournament bracket ("World Series champion ⇒ pennant winner"). Proven, then priced as YES(consequence) + NO(cause). |
 | **Crowd disagreement** | A prediction-market price vs. a margin-free consensus of sportsbooks (DraftKings, FanDuel, BetMGM, Pinnacle). A research signal, never labelled as profit. |
 | **Research** | Logically impossible pricing (implication, exclusivity, exhaustive sets) that isn't tradable. |
 | **Venues** | Honest live / partial / unavailable / needs-setup status per venue, eligibility by jurisdiction, and where matches come from. |
@@ -76,7 +77,9 @@ All settings are listed in [`.env.example`](.env.example).
 
 **6. Honest sports consensus.** No-vig probabilities are only computed from a book's *complete* outcome set (never from one side). Books sharing a pricing feed count once, stale quotes decay to zero weight, and the venue being evaluated is excluded from its own reference. Sportsbook + exchange baskets are modelled in cash payouts, including pushes and voids — but because books don't publish bet limits, they're labelled *execution unverified* and can never enter the guaranteed feed.
 
-**7. An AI assistant that can't make things up.** The chat sends a structured snapshot of the selected trade (legs, prices, books, fees, payoff table, match checks, rules) with every question. If Claude Code is installed, it runs headless with all tools disabled and API-key variables stripped, so it uses the local login instead of paid credits. A deterministic analyst answers from the same data when no model is available.
+**7. Proving links between different markets, exactly.** The Linked Markets engine turns each contract into constraints on the final score (winner ⇒ `a − b ≥ 1`, total over 48.5 ⇒ `a + b ≥ 49`, current score ⇒ `a ≥ 20, b ≥ 24`) and decides every outcome region with an exact integer feasibility procedure (`src/linked/solver.js`) — no sampling and no assumed maximum score. Ties, overtime rules, postponements and score corrections are modelled explicitly, and a proven structure is kept separate from execution readiness (fresh quotes, checked depth, known settlement).
+
+**8. An AI assistant that can't make things up.** The chat sends a structured snapshot of the selected trade (legs, prices, books, fees, payoff table, match checks, rules) with every question. If Claude Code is installed, it runs headless with all tools disabled and API-key variables stripped, so it uses the local login instead of paid credits. A deterministic analyst answers from the same data when no model is available.
 
 ## Project structure
 

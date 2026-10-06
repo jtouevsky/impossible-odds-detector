@@ -10,7 +10,7 @@ import { devigProportional, consensus, FRESH_DEFAULTS } from './odds.js';
 import { feeRatePerShare } from '../arb/fees.js';
 import { isExecutableArbitrage } from '../arb/payoff.js';
 
-const VNAME = { polymarket: 'Polymarket', 'polymarket-us': 'Polymarket US', kalshi: 'Kalshi' };
+const VNAME = { polymarket: 'Polymarket', 'polymarket-us': 'Polymarket US', kalshi: 'Kalshi', predictit: 'PredictIt', limitless: 'Limitless' };
 
 function pmRules(m, spec) {
   const r = (m.rules || '').toLowerCase();

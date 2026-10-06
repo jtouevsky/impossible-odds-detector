@@ -11,6 +11,8 @@ const state = {
   loading: false,
 };
 const $ = (id) => document.getElementById(id);
+const VENUE = { polymarket: 'Polymarket', 'polymarket-us': 'Polymarket US', kalshi: 'Kalshi', predictit: 'PredictIt', limitless: 'Limitless', manifold: 'Manifold' };
+const venueOf = (m) => VENUE[m?.provider] || 'the venue';
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtInt = (n) => (n == null ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? Math.round(n / 1e3) + 'k' : n.toLocaleString());
 const money = (n) => (n == null ? '—' : n >= 1e6 ? '$' + (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n / 1e3).toFixed(n >= 1e4 ? 0 : 1) + 'k' : '$' + Math.round(n));
@@ -61,7 +63,7 @@ async function load(refresh = false) {
   const btn = $('refresh');
   btn.disabled = true; btn.classList.add('spinning');
   if (!state.data) renderSkeleton();
-  setStatus('busy', refresh ? 'Rescanning Polymarket…' : 'Loading…');
+  setStatus('busy', refresh ? 'Rescanning markets…' : 'Loading…');
   const slow = setTimeout(startProgressPolling, 250);
   try {
     const data = await getJSON('/api/scan' + (refresh ? '?refresh=1' : ''));
@@ -161,7 +163,7 @@ function render() {
 
   // summary cards
   $('c-markets').textContent = fmtInt(d.stats.markets);
-  $('c-markets-sub').textContent = `${fmtInt(d.stats.events)} events · Polymarket + Kalshi`;
+  $('c-markets-sub').textContent = `${fmtInt(d.stats.events)} events · all connected venues`;
   $('c-rels').textContent = fmtInt(d.stats.relationships);
   const bd = d.stats.byDetector || {};
   $('c-rels-sub').textContent = `${fmtInt(bd.ladder || 0)} ladders · ${fmtInt(bd['outcome-set'] || 0)} sets · ${fmtInt((bd.hierarchy || 0) + (bd.equivalence || 0))} cross-event`;
@@ -261,14 +263,14 @@ function renderSkeleton() {
   const cell = (w) => `<td><div class="bar" style="width:${w}%"></div></td>`;
   tb.innerHTML = Array.from({ length: 8 }, () => `<tr class="sk">${cell(60)}${cell(90)}${cell(50)}${cell(70)}${cell(90)}${cell(50)}${cell(50)}${cell(70)}</tr>`).join('');
   $('empty').hidden = true;
-  $('foot-left').textContent = 'First scan pulls Polymarket + Kalshi (~200k markets, about 40–60 s). Results are cached for 5 minutes.';
+  $('foot-left').textContent = 'First scan pulls every connected venue (~200k markets, about 40–90 s). Results are cached for 5 minutes.';
 }
 
 function renderError(msg) {
   $('rows').innerHTML = '';
   const e = $('empty');
   e.hidden = false;
-  e.innerHTML = `<h3>Couldn't reach Polymarket</h3><p>${esc(msg)}</p><button class="btn primary" id="retry">Try again</button>`;
+  e.innerHTML = `<h3>Couldn't load market data</h3><p>${esc(msg)}</p><button class="btn primary" id="retry">Try again</button>`;
   $('retry').onclick = () => load(true);
 }
 
@@ -298,8 +300,8 @@ function openDetail(id, push = true) {
       <div>
         <div class="tag">${esc(tag)}</div>
         <div class="q">${esc(marketTitle(m))}</div>
-        <div class="meta">${esc(m.eventTitle)} · liquidity ${money(m.liquidity)} · volume ${money(m.volume)}${m.endDate ? ' · ends ' + esc(m.endDate.slice(0, 10)) : ''}</div>
-        <a class="out" href="${esc(m.url)}" target="_blank" rel="noopener">Open on Polymarket ↗</a>
+        <div class="meta"><b>${esc(venueOf(m))}</b> · ${esc(m.eventTitle)} · liquidity ${money(m.liquidity)} · volume ${money(m.volume)}${m.endDate ? ' · ends ' + esc(m.endDate.slice(0, 10)) : ''}</div>
+        <a class="out" href="${esc(m.url)}" target="_blank" rel="noopener">Open on ${esc(venueOf(m))} ↗</a>
         <div class="live-leg muted" style="font-size:12px;margin-top:4px"></div>
       </div>
       <div class="p">${pct(m.price)}<small>bid ${m.bid != null ? pct(m.bid) : '–'} · ask ${m.ask != null ? pct(m.ask) : '–'}</small></div>
@@ -313,7 +315,7 @@ function openDetail(id, push = true) {
       ${legs.map((m) => `<tr data-mid="${esc(m.id)}"><td><a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.label || m.question)}</a></td><td class="num">${pct(m.price)}</td><td class="num lb">${m.bid != null ? pct(m.bid) : '–'}</td><td class="num la">${m.ask != null ? pct(m.ask) : '–'}</td><td class="num">${money(m.liquidity)}</td></tr>`).join('')}
       <tr><td><b>Sum</b></td><td class="num"><b>${pct(v.sum)}</b></td><td class="num">${pct(v.legs.reduce((s, id) => s + (M[id]?.bid ?? 0), 0))}</td><td class="num">${pct(v.legs.reduce((s, id) => s + (M[id]?.ask ?? 1), 0))}</td><td></td></tr>
       </tbody></table>
-      ${v.event ? `<a class="out" style="display:inline-block;margin-top:10px;color:var(--info);text-decoration:none;font-size:12px" href="${esc(v.event.url)}" target="_blank" rel="noopener">Open event on Polymarket ↗</a>` : ''}</div>`;
+      ${v.event ? `<a class="out" style="display:inline-block;margin-top:10px;color:var(--info);text-decoration:none;font-size:12px" href="${esc(v.event.url)}" target="_blank" rel="noopener">Open event on ${esc([...new Set(legs.map(venueOf))].join(' / '))} ↗</a>` : ''}</div>`;
   } else {
     const leftTag = v.type === 'implication' ? 'Contract B · the necessary condition' : 'Contract A';
     const rightTag = v.type === 'implication' ? 'Contract A · requires B' : 'Contract B';
@@ -350,7 +352,7 @@ function openDetail(id, push = true) {
         ${v.ladderPeers ? `<p class="muted">${v.ladderPeers} more pair${v.ladderPeers > 1 ? 's' : ''} in this ladder also violate the ordering; only the strongest two are listed.</p>` : ''}
       </div>
       <div class="box"><h4>Verify against live order books</h4>
-        <div class="live"><button class="btn" id="verify">Check live prices</button><span class="live-out" id="live-out">Pulls the current best bid/ask for every leg from Polymarket's order book.</span></div>
+        <div class="live"><button class="btn" id="verify">Check live prices</button><span class="live-out" id="live-out">Pulls the current best bid/ask for every leg from each venue's order book.</span></div>
       </div>
       <div class="box"><h4>Confidence breakdown</h4>
         <div class="factors">
@@ -395,7 +397,7 @@ async function loadRules(v, el) {
   const M = state.data.markets;
   const ids = [v._cols.left.m.id, v._cols.right.m.id];
   try {
-    const ds = await Promise.all(ids.map((id) => getJSON('/api/market/' + encodeURIComponent(id))));
+    const ds = await Promise.all(ids.map((id) => getJSON('/api/market/' + encodeURIComponent(id) + '?provider=' + encodeURIComponent(M[id]?.provider || 'polymarket')).catch((e) => ({ description: `(couldn't load from ${venueOf(M[id])}: ${e.message})` }))));
     el.querySelector('pre').textContent = ds.map((d, i) => `${i === 0 ? '▸ ' : '\n▸ '}${marketTitle(M[ids[i]])}\n${d.description || '(no rules text)'}`).join('\n');
   } catch (err) {
     el.querySelector('pre').textContent = `Couldn't load rules: ${err.message}`;

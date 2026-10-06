@@ -10,11 +10,11 @@ import { isUsableMarket, hashString } from './schema.js';
 import { getJSON, compactRules } from './polymarket.js';
 
 export const PMUS_GATEWAY = 'https://gateway.polymarket.us';
-const SITE = 'https://polymarket.us/market';
+const SITE = 'https://polymarket.us/event'; // market pages live under their event: /event/{eventSlug}
 const num = (v) => { const n = typeof v === 'number' ? v : parseFloat(v?.value ?? v); return Number.isFinite(n) ? n : null; };
 const CATEGORY = { sports: 'Sports', politics: 'Politics', culture: 'Culture', finance: 'Finance', technology: 'Tech', macro: 'Economy', geopolitics: 'World', crypto: 'Crypto', science: 'Science' };
 
-export function normalizePMUSMarket(m) {
+export function normalizePMUSMarket(m, ev = null) {
   try {
     const sides = m.marketSides || [];
     const long = sides.find((s) => s.long) || sides[0], short = sides.find((s) => !s.long) || sides[1];
@@ -39,7 +39,7 @@ export function normalizePMUSMarket(m) {
       category: CATEGORY[m.category] || 'Other',
       feeCoefficient: num(m.feeCoefficient) ?? 0.0695, minTradeQty: num(m.minimumTradeQty) ?? 1, tickSize: num(m.orderPriceMinTickSize),
       rules: compactRules(m.description || ''), descriptionHash: hashString((m.description || '').replace(/\s+/g, ' ').trim().toLowerCase()),
-      tokenId: m.slug, url: `${SITE}/${m.slug}`, eventTitle: m.question || '', quoteTime: m.updatedAt || null,
+      tokenId: m.slug, url: ev?.slug ? `${SITE}/${ev.slug}` : 'https://polymarket.us', eventSlug: ev?.slug || null, eventTitle: ev?.title || m.question || '', quoteTime: m.updatedAt || null,
     };
     return isUsableMarket(nm) ? nm : null;
   } catch { return null; }
@@ -67,22 +67,23 @@ export const polymarketUSProvider = {
 
   async fetchSnapshot({ maxEvents, fetch: fetchImpl = globalThis.fetch, onProgress } = {}) {
     const max = +(process.env.PMUS_MAX_MARKETS || maxEvents || 15000);
-    const PAGE = 500, LIMIT_PAGES = 400, CONC = 6;
+    // Events carry their markets plus the event slug needed for a working link (polymarket.us/event/{slug}).
+    const PAGE = 100, LIMIT_PAGES = 400, CONC = 6;
     const raw = [];
     let next = 0, done = false, pages = 0;
     const worker = async () => {
       while (!done && pages < LIMIT_PAGES) {
         const off = next; next += PAGE; pages++;
-        const j = await getJSON(fetchImpl, `${PMUS_GATEWAY}/v1/markets?limit=${PAGE}&offset=${off}&active=true&closed=false`);
-        const ms = j?.markets || [];
-        raw.push(...ms);
-        if (ms.length < PAGE) done = true;
+        const j = await getJSON(fetchImpl, `${PMUS_GATEWAY}/v1/events?limit=${PAGE}&offset=${off}&active=true&closed=false`);
+        const evs = j?.events || [];
+        for (const ev of evs) for (const m of ev.markets || []) raw.push([m, ev]);
+        if (evs.length < PAGE) done = true;
         onProgress && onProgress({ markets: raw.length });
       }
     };
     await Promise.all(Array.from({ length: CONC }, worker));
     const seen = new Set();
-    const all = raw.filter((m) => !seen.has(m.slug) && seen.add(m.slug)).map(normalizePMUSMarket).filter(Boolean);
+    const all = raw.filter(([m]) => !m.closed && !seen.has(m.slug) && seen.add(m.slug)).map(([m, ev]) => normalizePMUSMarket(m, ev)).filter(Boolean);
     const quoted = all.filter((m) => m.bid != null || m.ask != null);
     // Keep every game-level market with a quote; fill the rest by 24h volume (memory bound).
     const games = quoted.filter((m) => m.isGame), rest = quoted.filter((m) => !m.isGame).sort((a, b) => b.volume24h - a.volume24h);
@@ -112,6 +113,6 @@ export const polymarketUSProvider = {
     const slug = String(id).replace(/^pmus:/, '');
     const j = await getJSON(globalThis.fetch, `${PMUS_GATEWAY}/v1/markets?slug=${encodeURIComponent(slug)}`);
     const m = j?.markets?.[0];
-    return m ? { id, description: m.description || '', rules: m.description || '', url: `${SITE}/${slug}` } : { id, description: '' };
+    return m ? { id, description: m.description || '', rules: m.description || '' } : { id, description: '' };
   },
 };

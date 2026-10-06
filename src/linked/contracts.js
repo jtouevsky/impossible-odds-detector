@@ -6,7 +6,7 @@ import { hashString } from '../providers/schema.js';
 
 const num = (v) => { const n = parseFloat(v?.value ?? v); return Number.isFinite(n) ? n : null; };
 const r6 = (x) => (x == null ? null : Math.round(x * 1e6) / 1e6);
-export const SITE = 'https://polymarket.us/market';
+export const SITE = 'https://polymarket.us/event';
 export const SUPPORTED_GAME_LEAGUES = { nfl: { ties: true, unit: 'points' }, cfb: { ties: false, unit: 'points' }, mlb: { ties: false, unit: 'runs' } };
 
 /** Settlement facts the engine relies on, read from the market description. */
@@ -39,7 +39,7 @@ function base(m, ev, league) {
   const open = m.active !== false && !m.closed && (m.status ? /OPEN/.test(m.status) : true) && (m.ep3Status ? m.ep3Status === 'OPEN' : true);
   return {
     id: m.slug, venue: 'polymarket-us', venueName: 'Polymarket US', eventSlug: ev.slug, eventTitle: ev.title, league,
-    question: m.question, url: `${SITE}/${m.slug}`, feeCoefficient: num(m.feeCoefficient) ?? 0.0695,
+    question: m.question, url: `${SITE}/${ev.slug}`, feeCoefficient: num(m.feeCoefficient) ?? 0.0695,
     marketType: m.sportsMarketType, open, updatedAt: m.updatedAt || null, minQty: num(m.minimumTradeQty) ?? 1,
     rules: parseSettlement(m.description || ''),
   };

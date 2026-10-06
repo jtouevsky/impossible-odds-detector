@@ -53,7 +53,22 @@ export function conditionPair(A, B) {
   };
   const a = one(A, ta), b = one(B, tb);
   if (!a || !b || a.kind !== b.kind || a.negated !== b.negated) return null;
+  // Independent cross-check against the outcome label itself ("2+", "5 or more", "under 3"): if the label
+  // says the opposite of what the question-text parse concluded, we don't trust either — no structure.
+  for (const [m, c] of [[A, a], [B, b]]) {
+    const want = labelDirection(m.isYesNo ? m.label : m.yesOutcome || m.label);
+    if (want && want !== (c.negated ? (c.op === 'ge' ? 'le' : 'ge') : c.op)) return null;
+  }
   return [a, b];
+}
+
+/** What a short outcome label says on its own: 'ge' for "2+", "5 or more", "at least 3", "over 10"; 'le' for "under 3", "2 or fewer". */
+export function labelDirection(label) {
+  const l = String(label || '').trim().toLowerCase();
+  if (!l || !/\d/.test(l)) return null;
+  if (/^[<≤]|\b(under|below|less than|fewer than|at most|or (fewer|less|below|lower))\b|\d\s*-\s*$/.test(l)) return 'le';
+  if (/^[>≥]|\d\s*\+\s*$|\b(over|above|more than|at least|or (more|above|higher|greater))\b/.test(l)) return 'ge';
+  return null;
 }
 
 /** Truth of a condition at a sample point. Returns [lo, hi] (boundary ambiguity -> [0,1]). */

@@ -15,7 +15,7 @@ export const DEFAULT_ARB_CONFIG = {
   now: null,                 // injectable clock (tests)
 };
 
-const VENUE = { polymarket: 'Polymarket', kalshi: 'Kalshi' };
+const VENUE = { polymarket: 'Polymarket', 'polymarket-us': 'Polymarket US', kalshi: 'Kalshi', predictit: 'PredictIt', limitless: 'Limitless', manifold: 'Manifold' };
 
 // ---------- quotes ----------
 /** Best executable ask for buying `side` of market m, from the snapshot (top of book). */

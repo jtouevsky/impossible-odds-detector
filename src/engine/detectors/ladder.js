@@ -13,7 +13,8 @@ const INC_AFTER = /^\s*(%|°[cf]|[a-z]{0,12})?\s*(or less|or lower|or below|or f
 const DATE_INC_BEFORE = /(by|before|until|on or before|by the end of|by end of|before the end of|no later than)\s*$/;
 const BANNED = /\b(between|exactly|range|odd\/even|exact score|closest|nearest|winning margin|margin of victory|correct score)\b|\d\s*-\s*⟨N⟩|⟨N⟩\s*-\s*⟨N⟩|⟨N⟩\s*(to|-)\s*\$?⟨N⟩/;
 
-export const NEGATED = /\b(not|no|never|without|fails? to|won't|doesn't|isn't)\b|n't\b/;
+// "no" only negates as a standalone word: "no-hitter", "no-confidence vote", "No. 1 seed" are not negations.
+export const NEGATED = /\b(not|never|without|fails? to|won't|doesn't|isn't)\b|\bno\b(?![-‑.]\S?)|n't\b/;
 // "reach"/"hit" are ambiguous (hit 37% approval could be up or down) unless the market label says ↑ / ↓.
 const AMBIGUOUS_BEFORE = /\b(reach(?:es)?|hit(?:s)?|touch(?:es)?|trade at)\s*\$?\s*$/;
 

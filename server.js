@@ -326,8 +326,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (p.startsWith('/api/market/')) {
       const id = decodeURIComponent(p.slice('/api/market/'.length));
-      if (!/^[0-9a-zA-Z_-]{1,64}$/.test(id)) return send(req, res, 400, { error: 'bad id' });
-      const prov = getProvider(url.searchParams.get('provider') || 'polymarket');
+      if (!/^[0-9a-zA-Z_.:-]{1,128}$/.test(id)) return send(req, res, 400, { error: 'bad id' });
+      let prov;
+      try { prov = getProvider(url.searchParams.get('provider') || 'polymarket'); } catch { return send(req, res, 400, { error: 'unknown provider' }); }
+      if (!prov.fetchMarketDetails) return send(req, res, 200, { id, description: `(${prov.name} doesn't publish rules through its API — open the market link to read them)` });
       return send(req, res, 200, await prov.fetchMarketDetails(id));
     }
 

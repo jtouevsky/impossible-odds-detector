@@ -32,6 +32,24 @@ await test('Revolut ↑: B=$75B implies A=$70B -> YES(A)+NO(B) is safe, NO(A)+YE
   assert.ok(bad.deadZones.some((z) => /between \$70B and \$75B/.test(z)), bad.deadZones.join('|'));
 });
 
+await test('"no-hitters" is not a negation: 5+ no-hitters ⇒ 2+ no-hitters, so only YES(2+) + NO(5+) is safe', () => {
+  const A = pm({ question: 'Will there be 2+ no-hitters thrown during the 2026 MLB season?', label: '2+', eventTitle: 'MLB: Number of no-hitters thrown in 2026' });
+  const B = pm({ question: 'Will there be 5+ no-hitters thrown during the 2026 MLB season?', label: '5+', eventTitle: 'MLB: Number of no-hitters thrown in 2026' });
+  const nb = nestedBaskets(A, B);
+  assert.ok(nb, 'parsed');
+  assert.deepEqual(nb.conditions.map((c) => [c.op, c.t, c.negated]), [['ge', 2, false], ['ge', 5, false]]);
+  const safe = nb.baskets.find((b) => b.legs[0].side === 'yes' && b.legs[1].side === 'no');
+  const bad = nb.baskets.find((b) => b.legs[0].side === 'no' && b.legs[1].side === 'yes');
+  assert.equal(safe.minPayoff, 1);
+  assert.equal(bad.minPayoff, 0, 'NO(2+) + YES(5+) loses everything between 2 and 5');
+});
+
+await test('label cross-check: a question parse that contradicts its "N+" label yields no structure', () => {
+  const A = pm({ question: 'Will there not be 2 no-hitters thrown during the 2026 MLB season?', label: '2+' });
+  const B = pm({ question: 'Will there not be 5 no-hitters thrown during the 2026 MLB season?', label: '5+' });
+  assert.equal(nestedBaskets(A, B), null);
+});
+
 await test('Revolut ↓ (LOW): direction flips -> NO(70)+YES(75) is the safe basket', () => {
   const A = pm({ question: "Will Revolut's valuation hit (LOW) $70B by December 31?" });
   const B = pm({ question: "Will Revolut's valuation hit (LOW) $75B by December 31?" });

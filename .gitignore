@@ -1,0 +1,31 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local data: scan cache, settings, quote history
+.cache/
+
+# Dependencies / build output
+node_modules/
+dist/
+build/
+coverage/
+*.log
+npm-debug.log*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Large or generated data
+*.zip
+*.ndjson
+*.sqlite
+*.db
+
+# Old Claude deliveries
+Claude outputs/

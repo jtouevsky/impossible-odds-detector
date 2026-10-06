@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Impossible Odds</title>
+  <meta name="description" content="Guaranteed prediction-market arbitrage, explained." />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/theme.css" />
+  <script>
+    try {
+      const t = localStorage.getItem('iod-theme'); if (t) document.documentElement.dataset.theme = t;
+      const m = localStorage.getItem('iod-mode'); document.documentElement.dataset.mode = m || 'simple';
+    } catch { document.documentElement.dataset.mode = 'simple'; }
+  </script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+  <div class="app">
+    <header class="top glass">
+      <a class="brand" href="/" aria-label="Impossible Odds home">
+        <img class="mark" src="/brand/mark-edge.svg" alt="" width="38" height="38" />
+        <div class="wordmark"><span class="wm-1">Impossible</span><span class="wm-2">Odds</span><small>arbitrage terminal</small></div>
+      </a>
+      <div class="top-actions">
+        <div class="status" id="status" title=""><span class="dot"></span><span id="status-text">Connecting…</span></div>
+        <div class="seg mode" id="mode" role="radiogroup" aria-label="Detail level">
+          <button data-mode="simple" title="Plain words, fewer numbers">Simple</button>
+          <button data-mode="pro" title="All the numbers">Pro</button>
+        </div>
+        <button class="btn icon" id="help" type="button" title="Help & glossary" aria-label="Help and glossary">
+          <svg viewBox="0 0 24 24" class="ico"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.3a2.5 2.5 0 1 1 3.4 2.3c-.7.3-1 .8-1 1.5v.4M12 17h.01"/></svg>
+        </button>
+        <button class="btn" id="refresh" type="button" title="Fetch fresh market data">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg><span>Rescan</span>
+        </button>
+        <button class="btn icon" id="theme" type="button" title="Toggle theme" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24" class="ico"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="progress" id="progress" hidden><div class="bar" id="progress-bar"></div></div>
+
+    <nav class="tabs" id="tabs" role="tablist">
+      <button class="tab on" data-view="arb" role="tab">Guaranteed arbitrage <span class="n" id="tab-arb-n"></span></button>
+      <button class="tab" data-view="near" role="tab">Near-arb <span class="n" id="tab-near-n"></span></button>
+      <button class="tab" data-view="crowd" role="tab">Crowd disagreement <span class="n" id="tab-crowd-n"></span></button>
+      <button class="tab" data-view="research" role="tab">Research <span class="n" id="tab-res-n"></span></button>
+      <button class="tab" data-view="providers" role="tab">Venues <span class="n" id="tab-prov-n"></span></button>
+    </nav>
+
+    <!-- GUARANTEED + NEAR share one list component -->
+    <div id="view-arb">
+      <section class="hero">
+        <div class="hero-copy">
+          <h2 id="hero-title">Guaranteed arbitrage</h2>
+          <p id="hero-sub">Trades that pay more than they cost in <b>every</b> possible outcome — priced at real order-book asks, after fees and a safety buffer. <button class="eli" data-help="guaranteed">Explain like I'm new</button></p>
+        </div>
+        <div class="tiles">
+          <article class="tile"><div class="t-k">Opportunities <button class="eli sm" data-help="guaranteed">?</button></div><div class="t-v" id="t-count" data-num="0">—</div><div class="t-s" id="t-count-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Best net ROI <button class="eli sm" data-glossary="net ROI">?</button></div><div class="t-v" id="t-roi">—</div><div class="t-s clamp1" id="t-roi-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Executable profit <button class="eli sm" data-help="netProfit">?</button></div><div class="t-v" id="t-profit">—</div><div class="t-s" id="t-profit-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Venues scanned <button class="eli sm" data-help="providers">?</button></div><div class="t-v" id="t-venues">—</div><div class="t-s clamp1" id="t-venues-sub">&nbsp;</div></article>
+        </div>
+      </section>
+
+      <section class="panel glass">
+        <div class="toolbar">
+          <label class="search">
+            <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input id="aq" type="search" placeholder="Search teams, candidates, events…" autocomplete="off" />
+          </label>
+          <div class="seg" id="atypes" role="tablist" aria-label="Strategy">
+            <button data-type="all" class="on">All</button>
+            <button data-type="cross-platform">Cross-platform</button>
+            <button data-type="binary">Binary</button>
+            <button data-type="multi-outcome">Multi-outcome</button>
+            <button data-type="implication">Implication</button>
+          </div>
+          <button class="eli sm" data-help="strategy">?</button>
+        </div>
+        <div class="filters">
+          <label class="f"><span>Min net ROI <b id="aroi-val">0%</b> <button class="eli sm" data-help="minRoi" type="button">?</button></span><input type="range" id="aroi" min="0" max="10" step="0.25" value="0" /></label>
+          <label class="f sel"><span>Min profit <button class="eli sm" data-help="minProfit" type="button">?</button></span>
+            <select id="aprofit"><option value="0">Any</option><option value="1">$1+</option><option value="10">$10+</option><option value="100">$100+</option></select></label>
+          <label class="f sel"><span>Min liquidity <button class="eli sm" data-help="minLiq" type="button">?</button></span>
+            <select id="aliq"><option value="0">Any</option><option value="100">$100+</option><option value="1000">$1k+</option><option value="10000">$10k+</option></select></label>
+          <label class="f sel"><span>Venues</span><select id="apair"><option value="">All venue pairs</option></select></label>
+          <label class="toggle" id="averified-wrap"><input type="checkbox" id="averified" /><span class="track"><span class="knob"></span></span><span>Verified matches only</span> <button class="eli sm" data-glossary="verified match" type="button">?</button></label>
+        </div>
+        <div id="alist" class="opp-list" aria-live="polite"></div>
+        <div class="foot"><span id="afoot"></span>
+          <span class="muted">Every guaranteed trade satisfies: lowest payout across all outcomes − cost − fees − buffer &gt; 0. Not financial advice.</span></div>
+      </section>
+    </div>
+
+    <div id="view-research" hidden>
+    <div class="notice"><b>Research, not trades.</b> These are pricing inconsistencies worth studying. Acting on them can lose money — only the Guaranteed tab lists trades that pay in every outcome. <button class="eli" data-help="research">?</button></div>
+    <section class="cards" id="cards">
+      <article class="card"><div class="card-label">Markets scanned</div><div class="card-value" id="c-markets">—</div><div class="card-sub" id="c-markets-sub">&nbsp;</div></article>
+      <article class="card"><div class="card-label">Relationships analyzed</div><div class="card-value" id="c-rels">—</div><div class="card-sub" id="c-rels-sub">&nbsp;</div></article>
+      <article class="card"><div class="card-label">Violations found</div><div class="card-value" id="c-viol">—</div><div class="card-sub" id="c-viol-sub">&nbsp;</div></article>
+      <article class="card accent"><div class="card-label">Largest violation</div><div class="card-value" id="c-largest">—</div><div class="card-sub clamp1" id="c-largest-sub">&nbsp;</div></article>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <label class="search">
+          <svg viewBox="0 0 24 24" class="ico"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input id="q" type="search" placeholder="Search markets, events, teams, candidates…" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+        <div class="seg" id="types" role="tablist" aria-label="Violation type">
+          <button data-type="all" class="on">All</button>
+          <button data-type="implication">Implication</button>
+          <button data-type="exclusive">Exclusive</button>
+          <button data-type="exhaustive">Exhaustive</button>
+          <button data-type="equivalent">Equivalent</button>
+        </div>
+      </div>
+      <div class="filters">
+        <label class="f">
+          <span>Min discrepancy <b id="minv-val">1 pt</b></span>
+          <input type="range" id="minv" min="0" max="10" step="0.5" value="1" />
+        </label>
+        <label class="f">
+          <span>Min confidence <b id="minc-val">60%</b></span>
+          <input type="range" id="minc" min="0" max="95" step="5" value="60" />
+        </label>
+        <label class="f sel">
+          <span>Category</span>
+          <select id="cat"><option value="">All categories</option></select>
+        </label>
+        <label class="f sel">
+          <span>Liquidity (thinnest leg)</span>
+          <select id="liq">
+            <option value="0">Any</option>
+            <option value="1000">$1k+</option>
+            <option value="10000">$10k+</option>
+            <option value="100000">$100k+</option>
+          </select>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="exec" />
+          <span class="track"><span class="knob"></span></span>
+          <span>Executable only</span>
+        </label>
+        <button class="link" id="reset" type="button">Reset</button>
+      </div>
+
+      <div class="table-wrap">
+        <table class="grid" id="grid">
+          <thead>
+            <tr>
+              <th data-sort="magnitude" class="num">Violation</th>
+              <th>Market A</th>
+              <th data-sort="pLeft" class="num">Prob. A</th>
+              <th data-sort="type" class="rel-col">Relationship</th>
+              <th>Market B</th>
+              <th data-sort="pRight" class="num">Prob. B</th>
+              <th data-sort="edge" class="num">Edge</th>
+              <th data-sort="confidence" class="num">Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="empty" hidden></div>
+      </div>
+      <div class="foot">
+        <span id="foot-left"></span>
+        <span class="muted">Probability anomalies are research leads, not trades. Edge = gross profit per $1 payout at best bid/ask, before fees.</span>
+      </div>
+    </section>
+    </div>
+
+    <div id="view-crowd" hidden>
+      <section class="hero">
+        <div class="hero-copy">
+          <h2>Crowd disagreement</h2>
+          <p>Where a prediction market's buy price differs from what several sportsbooks imply, after removing their margin. A research signal — <b>not</b> a guaranteed trade. <button class="eli" data-help="crowd">Explain like I'm new</button></p>
+        </div>
+        <div class="tiles">
+          <article class="tile"><div class="t-k">Comparisons <button class="eli sm" data-help="crowd">?</button></div><div class="t-v" id="c-count">—</div><div class="t-s" id="c-count-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Largest gap after fees <button class="eli sm" data-glossary="estimated consensus">?</button></div><div class="t-v" id="c-max">—</div><div class="t-s clamp1" id="c-max-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Sportsbook feed <button class="eli sm" data-help="oddsFeed">?</button></div><div class="t-v" id="c-feed" style="font-size:20px">—</div><div class="t-s clamp1" id="c-feed-sub">&nbsp;</div></article>
+          <article class="tile"><div class="t-k">Sports baskets <button class="eli sm" data-help="sportsBasket">?</button></div><div class="t-v" id="c-baskets">—</div><div class="t-s clamp1" id="c-baskets-sub">execution unverified</div></article>
+        </div>
+      </section>
+      <section class="panel glass" id="c-setup" hidden></section>
+      <section class="panel glass">
+        <div class="filters">
+          <label class="f sel"><span>Sport</span><select id="c-sport"><option value="">All sports</option></select></label>
+          <label class="f sel"><span>Market</span><select id="c-type"><option value="">All markets</option><option value="moneyline">Game winner</option><option value="spread">Spread</option><option value="total">Total</option><option value="player_prop">Player prop</option></select></label>
+          <label class="f sel"><span>Venue</span><select id="c-venue"><option value="">All venues</option></select></label>
+          <label class="f"><span>Min gap after fees <b id="c-min-val">2 pts</b> <button class="eli sm" data-help="minDisagree" type="button">?</button></span><input type="range" id="c-min" min="0" max="15" step="0.5" value="2" /></label>
+          <label class="f sel"><span>Freshness <button class="eli sm" data-glossary="freshness" type="button">?</button></span><select id="c-fresh"><option value="15">≤ 15 min</option><option value="60" selected>≤ 60 min</option><option value="240">≤ 4 h</option><option value="0">Any</option></select></label>
+        </div>
+        <div id="clist" class="opp-list" aria-live="polite"></div>
+        <div class="foot"><span id="cfoot"></span><span class="muted">Estimated consensus probability = freshness-weighted average of no-vig sportsbook probabilities, excluding the venue being evaluated. Not objective truth; not financial advice.</span></div>
+      </section>
+      <section class="panel glass" id="c-basket-panel" hidden><div class="ph">Sports baskets · structural, execution unverified <button class="eli sm" data-help="sportsBasket">?</button></div><div id="c-baskets-list"></div></section>
+    </div>
+
+    <div id="view-providers" hidden>
+      <section class="hero"><div class="hero-copy"><h2>Venues</h2><p>Which exchanges are connected, what each one gives us, and where opportunities come from. <button class="eli" data-help="providers">Explain like I'm new</button></p></div></section>
+      <section class="panel glass"><div class="ph">Where you trade <button class="eli sm" data-help="jurisdiction">?</button></div><div id="jur" class="jur"></div></section>
+      <section class="panel glass"><div class="ph">Sports odds feed</div><div id="feedpanel"></div></section>
+      <section class="panel glass"><div class="ph">Connected venues</div><div class="table-scroll"><table class="ptable" id="ptable"></table></div></section>
+      <section class="panel glass"><div class="ph">Venue pairs</div><div class="table-scroll"><table class="ptable" id="pairtable"></table></div></section>
+      <section class="panel glass"><div class="ph">Planned</div><div id="planned" class="planned"></div></section>
+    </div>
+  </div>
+
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" tabindex="-1"></aside>
+  <div class="pop" id="pop" role="dialog" hidden></div>
+  <div class="modal" id="helpmodal" hidden><div class="sheet glass" id="helpsheet" role="dialog" aria-label="Help center"></div></div>
+  <div class="toast" id="toast" hidden></div>
+
+  <script type="module" src="/app.js"></script>
+  <script type="module" src="/arb.js"></script>
+  <script type="module" src="/crowd.js"></script>
+  <script type="module" src="/chat.js"></script>
+</body>
+</html>
